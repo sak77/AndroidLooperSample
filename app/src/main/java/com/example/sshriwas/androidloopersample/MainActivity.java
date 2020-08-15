@@ -4,7 +4,6 @@ import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.os.MessageQueue;
 import android.os.SystemClock;
 import android.support.design.widget.TextInputEditText;
 import android.support.v7.app.AppCompatActivity;
@@ -24,6 +23,8 @@ import android.widget.TextView;
  */
 public class MainActivity extends AppCompatActivity {
     TextView txtOutput;
+    private static final String TAG = "MainActivity";
+    private int mCount;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,53 +36,150 @@ public class MainActivity extends AppCompatActivity {
         btnStart.setOnClickListener(view -> {
             //Take input value and pass it to thread
             String input = editText.getText().toString();
-            MyCalculateThread myCalculateThread = new MyCalculateThread(Integer.parseInt(input));
+            ThreadUsingHandler myCalculateThread = new ThreadUsingHandler(Integer.parseInt(input));
+            //Thread.run() simply invokes code in run method on the thread.
+            //However Thread.start() creates a separate thread. So use start() to execute on
+            // background thread.
             myCalculateThread.start();
+
+            //new MyCalculateRunnable().run();
+
+            //CalculateThread2 calculateThread2 = new CalculateThread2(Integer.parseInt(input));
+            //calculateThread2.start();
         });
     }
 
+    //Note - Just Implementing Runnable does not automatically cause its run() to be executed on
+    // a separate thread. This is because Runnable is simply a functional interface with a single
+    // method run(). For background tasks, extend the Thread class only.
+    private class MyCalculateRunnable implements Runnable {
 
-    private class MyCalculateThread extends Thread {
-        private int mSeed;
+        @Override
+        public void run() {
 
-        MyCalculateThread(int seed) {
+            for (int i = 0; i < 10; i++) {
+                SystemClock.sleep(2000);
+                Log.i(TAG, "" + i);
+            }
+
+        }
+    }
+
+    /*
+    Instead of Handlers, this thread uses Activity.runOnUiThread() to communicate between worker
+    thread and the main thread.
+     */
+    private class ThreadUsingRunOnUiThread extends Thread {
+
+        int mSeed;
+
+        ThreadUsingRunOnUiThread(int seed) {
             mSeed = seed;
         }
 
         @Override
         public void run() {
             super.run();
-            //Try updating UI from here. Get handler for Main Thread's Looper using getMainLooper()
-            //Handler myHandler = new Handler(Looper.getMainLooper()) {
 
-            try{
+            for (int i = 0; i < 10; i++) {
+                long value = myCalculateFunction(i);
+                Log.v(TAG, "Output - " + value);
+                MainActivity.this.runOnUiThread(() -> {
+                    txtOutput.setText("" + value);
+                    txtOutput.setBackgroundColor(
+                            Color.rgb(200, 250, value));
+                });
+                //SystemClock.sleep is similar to Thread.sleep() plus, you dont need the
+                //try catch block....
+                SystemClock.sleep(1000);
+            }
+        }
+    }
+
+
+    /*
+    This thread uses Handler to communicate back to the UI thread.
+     */
+    private class ThreadUsingHandler extends Thread {
+        private int mSeed;
+
+        ThreadUsingHandler(int seed) {
+            mSeed = seed;
+        }
+
+        @Override
+        public void run() {
+            super.run();
+
             /*
-            Default Handler constructor - creates a Handler and associates it with the Looper of the
-            current thread. So if you are using the default constructor, be sure to first create a
-            Looper for the thread by using Looper.prepare(). Ofcourse you need to also call
-            Looper.loop() so that the Looper can start dispatching messages once the handler sends them.
-            One more point to note here is that if the handler does not have reference to the main thread's looper
-            then it CANNOT update the UI. Below setText() only works due to some wierd Andriod behavior. Otherwise
-            trying to set bkg color will throw an exception.
+            The main components here are -
+            1. MessageQueue - a queue that holds list of messages/runnables which are handled by the Handler.
+            2. Looper - An infinite for loop that loops through messages in the MessageQueue. And
+            dispatches them to the Handler. There can be only one message queue and looper for each
+            thread in the application.
+            3. Handler - Is associated with a thread and its looper. It sends messages to the message queue
+            and also handles messages which are dispatched from the message queue. There can be multiple
+            handlers for a given Looper and message queue.
+            4. Message - Contains info/data which tells handler what task it needs to perform.
              */
+
+            /*
+            Handler's default constructor takes no argument and it associates the handler with the
+            Looper of the current thread. But background threads do not create a message queue or Looper
+            by default. So before instantiating the default Handler instance, it is necessary to
+            create a message queue and looper for the current thread. This is accomplished using
+            Looper.prepare(). So call this before you create the Handler instance. Also, after
+            Handler instance is created, call Looper.loop() to begin looping through the message queue.
+
+            Get handler for Main Thread's Looper using Looper.getMainLooper().
+
+            One more point to note here is that if the handler does not have reference to the main
+            thread's looper then it CANNOT update the UI.
+             */
+
+            /* Handler for main thread.....
+            Handler myHandler = new Handler(Looper.getMainLooper()) {
+                @Override
+                public void handleMessage(Message msg) {
+                    super.handleMessage(msg);
+                }
+            };*/
+
+            //Handler for current thread
+            try {
                 Looper.prepare();
-                //Define handler, which will send messages and also handle them...
+                /*
+                Anonymous inner class by default holds implicit reference to its parent class, which is
+                MainActivity in this case. That is why we are able to reference txtOutput inside it.
+
+                However, if the background task is long running, then it can pose a risk of memory leak.
+                What happens if the user rotates the device when the background task is in progress?
+
+                Ideally the system will delete the current activity instance and create a new instance.
+                However, this will not be possible since the background thread is still running and it
+                holds reference of the parent class. So it will leak the activity class. This has to
+                be avoided as far as possible.
+
+                Either make the handler impl static, but then it cannot access member variables of the
+                parent class. Or use a weak reference....
+                 */
                 Handler myHandler = new Handler() {
                     @Override
                     public void handleMessage(Message msg) {
                         super.handleMessage(msg);
-                        try {
-                            sleep(3000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
+                        //Same as Thread.sleep() but without the try catch...
+                        SystemClock.sleep(3000);
+                        Log.v(TAG, "Handling message obj - " + msg.obj.toString());
 
-                        //txtOutput.setText(msg.obj.toString());
-/*
+                    /*
+                    This will work only if handler is associated with the main thread...
+
+                        txtOutput.setText(msg.obj.toString());
                         txtOutput.setBackgroundColor(
                                 Color.rgb(200, 250, Integer.parseInt(msg.obj.toString())));
-*/
+                    */
                     }
+
                     //Not sure whats difference between handle message and dispatch
                     //but its recommended to use handlemessage()
                     @Override
@@ -90,26 +188,37 @@ public class MainActivity extends AppCompatActivity {
                     }
                 };
 
-                //Prepare the messagequeue for the looper, by sending messages to it
                 for (int i = 0; i < 10; i++) {
-                    int value = myCalculateFunction(mSeed);
-                    Message message = new Message();
-                    message.obj = value;
+                    long value = myCalculateFunction(mSeed);
+
+                    /*
+                    Instead of using the public constructor to define a message, better use
+                    the handler.obtainMessage() to create message instance.
+
+                    This is more efficient since it will try and recycle existing message instances
+                    instead of creating a new instance every time.
+                     */
+                    //Message message = new Message();
+                    Message message = myHandler.obtainMessage();
+                    message.obj = "Message value " + value;
+                    Log.v(TAG, "Sending message obj - " + message.obj.toString());
                     myHandler.sendMessage(message);
                 }
-                //Call Looper.loop to loop through the messages in the messagequeue
+
                 //The call to loop() doesn’t return;
-                // from the moment you call this method, your thread is processing messages until the quit() method is called on its Looper.
+                // from the moment you call this method, your thread is processing messages until
+                // the quit() method is called on its Looper.
                 Looper.loop();
 
-            }finally {
+            } finally {
                 Looper.myLooper().quitSafely();
             }
         }
     }
 
-    private int myCalculateFunction(int seed) {
-        return (int) (seed * SystemClock.currentThreadTimeMillis());
+    private long myCalculateFunction(int seed) {
+        mCount+=4;
+        return (seed * mCount);
     }
 
     /**
@@ -120,7 +229,6 @@ public class MainActivity extends AppCompatActivity {
      * of the main thread's looper via Looper.getMainLooper().
      *
      * You can also create a default Handler where you don't pass any reference to the Handler
-     * or just reference to current thread's Looper. But i didn't find this to be of too much
-     * use in practical situations.
+     * or just reference to current thread's Looper.
      */
 }
