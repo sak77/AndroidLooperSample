@@ -163,7 +163,18 @@ public class MainActivity extends AppCompatActivity {
                 Either make the handler impl static, but then it cannot access member variables of the
                 parent class. Or use a weak reference....
                  */
-                Handler myHandler = new Handler() {
+
+                /*
+                Update 04 Feb 2021 - Default Handler constructor new Handler() is deprecated.
+                Implicitly choosing a Looper during Handler construction can lead to bugs where operations
+                are silently lost (if the Handler is not expecting new tasks and quits), crashes
+                (if a handler is sometimes created on a thread without a Looper active), or race conditions,
+                where the thread a handler is associated with is not what the author anticipated.
+                Instead, use an Executor or specify the Looper explicitly, using Looper#getMainLooper, {link android.view.View#getHandler}, or similar.
+                If the implicit thread local behavior is required for compatibility,
+                 use new Handler(Looper.myLooper()) to make it clear to readers.
+                 */
+                Handler myHandler = new Handler(Looper.myLooper()) {
                     @Override
                     public void handleMessage(Message msg) {
                         super.handleMessage(msg);
@@ -227,8 +238,5 @@ public class MainActivity extends AppCompatActivity {
      * the worker threads and the main UI thread. So after worker threads has completed their
      * tasks they can update the UI thread by creating instance of Handler and passing reference
      * of the main thread's looper via Looper.getMainLooper().
-     *
-     * You can also create a default Handler where you don't pass any reference to the Handler
-     * or just reference to current thread's Looper.
      */
 }
