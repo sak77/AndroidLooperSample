@@ -133,19 +133,6 @@ public class MainActivity extends AppCompatActivity {
             4. Message - Contains info/data which tells handler what task it needs to perform.
              */
 
-            /*
-            Background threads do not create a message queue or Looper
-            by default. So before instantiating the Handler instance it is necessary to
-            create a message queue and looper for the current thread. This is accomplished using
-            Looper.prepare(). Also, after Handler instance is created, call Looper.loop()
-            to begin looping through the message queue.
-
-            Get handler for Main Thread's Looper using Looper.getMainLooper().
-            Get handler for current thread's looper using Looper.myLooper().
-
-            One more point to note here is that if the handler does not have reference to the main
-            thread's looper then it CANNOT update the UI.
-             */
             Log.d(TAG, "onCreate: R.id.rbHandlerSendMessage");
 
                 /*
