@@ -136,22 +136,6 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "onCreate: R.id.rbHandlerSendMessage");
 
                 /*
-                Anonymous inner class by default holds implicit reference to its parent class, which is
-                MainActivity in this case. That is why we are able to reference txtOutput inside it.
-
-                However, if the background task is long running, then it can pose a risk of memory leak.
-                What happens if the user rotates the device when the background task is in progress?
-
-                Ideally the system will delete the current activity instance and create a new instance.
-                However, this will not be possible since the background thread is still running and it
-                holds reference of the parent class. So it will leak the activity class. This has to
-                be avoided as far as possible.
-
-                Either make the handler impl static, but then it cannot access member variables of the
-                parent class. Or use a weak reference....
-                 */
-
-                /*
                 Update 04 Feb 2021 - Default Handler constructor new Handler() is deprecated.
                  */
             Handler myHandler = new Handler(Looper.getMainLooper()) {
